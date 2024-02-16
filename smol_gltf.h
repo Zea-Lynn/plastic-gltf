@@ -252,7 +252,7 @@ const char *root_object_names[smol_root_object_count] = {
     "scenes",
 };
 
-inline u64 count_json_symbols(u64 json_size, u8 const *json) {
+inline u64 smol_count_json_symbols(u64 json_size, u8 const *json) {
         u64 token_count;
         for (u8 const *byte = json; byte != json + json_size; ++byte) {
                 switch (*byte) {
@@ -271,7 +271,7 @@ inline u64 count_json_symbols(u64 json_size, u8 const *json) {
         return token_count;
 }
 
-inline void parse_json_symbols(u64 json_size, u8 const * const json, u64 symbol_count, smol_symbol *symbols, u8 const **symbol_chars) {
+inline void smol_parse_json_symbols(u64 json_size, u8 const * const json, u64 symbol_count, smol_symbol *symbols, u8 const **symbol_chars) {
         u8 const **current_symbol_char = symbol_chars;
         smol_symbol *current_symbol = symbols;
         bool in_string = false;
@@ -377,7 +377,7 @@ inline void smol_parse_json_tokens(size_t symbol_count, smol_symbol const *const
         }
 }
 
-inline size_t count_objects_til_end_of_array(size_t token_count, smol_token const * tokens, size_t current_token_index){
+inline size_t smol_count_objects_til_end_of_array(size_t token_count, smol_token const * tokens, size_t current_token_index){
         size_t object_count = 0;
         size_t nested_object_count = 0;
         bool in_object = false;
@@ -403,7 +403,7 @@ inline size_t count_objects_til_end_of_array(size_t token_count, smol_token cons
         return object_count;
 }
 
-inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) {
+inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) {
         if (allocator.allocate && allocator.free) {
                 gltf->allocator.allocate = allocator.allocate;
                 gltf->allocator.free = allocator.free;
@@ -432,10 +432,10 @@ inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
         if (binary_chunk.type != BIN) return false;
         binary_chunk.data = raw_gltf_data + 20 + json_chunk.length + 8;
 
-        size_t json_sybmol_count = count_json_symbols(json_chunk.length, json_chunk.data);
+        size_t json_sybmol_count = smol_count_json_symbols(json_chunk.length, json_chunk.data);
         smol_symbol *json_symbols = (smol_symbol *)gltf->allocator.allocate(json_sybmol_count * sizeof(smol_symbol));
         u8 const **symbol_char_locations = (u8 const **)gltf->allocator.allocate(json_sybmol_count * sizeof(u8 const *));
-        parse_json_symbols(json_chunk.length, json_chunk.data, json_sybmol_count, json_symbols, symbol_char_locations);
+        smol_parse_json_symbols(json_chunk.length, json_chunk.data, json_sybmol_count, json_symbols, symbol_char_locations);
 
         size_t token_count = smol_count_json_tokens(json_sybmol_count, json_symbols);
         smol_token *tokens = (smol_token *)gltf->allocator.allocate(token_count * sizeof(smol_token));
@@ -476,7 +476,7 @@ inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 }
                                         } else if(root_object == smol_root_bufferViews){
                                                 token_index+=2;
-                                                gltf->buffer_view_count = count_objects_til_end_of_array(token_count, tokens, token_index);
+                                                gltf->buffer_view_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                                                 gltf->buffer_views = (smol_buffer_view * )gltf->allocator.allocate(gltf->buffer_view_count * sizeof(smol_buffer_view));
                                                 size_t buffer_view_index = 0;
                                                 bool in_object;
@@ -501,7 +501,7 @@ inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 }while(tokens[token_index] != smol_token_end_array);
                                         } else if(root_object == smol_root_buffers){
                                                 token_index+=2;
-                                                gltf->buffer_count = count_objects_til_end_of_array(token_count, tokens, token_index);
+                                                gltf->buffer_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                                                 gltf->buffers = (smol_buffer *)gltf->allocator.allocate(gltf->buffer_count * sizeof(smol_buffer));
                                                 size_t buffer_index = 0;
 
@@ -509,17 +509,17 @@ inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
 
                                         } else if(root_object == smol_root_meshes){
                                                 token_index+=2;
-                                                gltf->mesh_count = count_objects_til_end_of_array(token_count, tokens, token_index);
+                                                gltf->mesh_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
 
                                         } else if(root_object == smol_root_nodes){
                                                 token_index+=2;
-                                                gltf->node_count = count_objects_til_end_of_array(token_count, tokens, token_index);
+                                                gltf->node_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
 
                                         } else if(root_object == smol_root_scene){
 
                                         } else if(root_object == smol_root_scenes){
                                                 token_index+=2;
-                                                gltf->scene_count = count_objects_til_end_of_array(token_count, tokens, token_index);
+                                                gltf->scene_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
 
                                         } else if (root_object == smol_root_accessors) {
                                                 gltf->accessor_count = 0;
@@ -620,7 +620,7 @@ inline bool parse_smol_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
         return true;
 }
 
-inline void free_smol_GLTF(smol_GLTF *gltf) {}
+inline void smol_free_GLTF(smol_GLTF *gltf) {}
 
 #ifdef __cplusplus
 }
