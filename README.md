@@ -11,5 +11,5 @@ bounds checking to prevent buffer overflows could be added in the future.
 requirements
 ------------
 stdint.h
-string.h
 stdbool.h
+stdlib.h
