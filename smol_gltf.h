@@ -45,6 +45,7 @@ inline bool smol_str_in(smol_str str, char const * const * strs, size_t count) N
 
 
 inline s64 smol_str_to_s64(smol_str str) NOEXCEPT{
+        if(str.length == 0 || str.data == NULL) return 0;
         if(str.length > 20) return 0;
         s64 value = 0;
         s64 sign = 1;
@@ -59,6 +60,7 @@ inline s64 smol_str_to_s64(smol_str str) NOEXCEPT{
 }
 
 inline f32 smol_str_to_f32(smol_str str) NOEXCEPT{
+        if(str.length == 0 || str.data == NULL) return 0;
         f32 sign = 1;
         f32 value = 0;
         if(str.data[0] == '-') sign = -1;
@@ -110,23 +112,39 @@ typedef struct smol_node {
 } smol_node;
 
 typedef enum smol_mesh_primitive_attribute_name : u8{
-        POSITION,
-        NORMAL,
-        TANGENT,
-        TEXCOORD_0,
-        COLOR_0,
-        JOINTS_0,
-        WEIGHTS_0,
+        smol_POSITION,
+        smol_NORMAL,
+        smol_TANGENT,
+
+        //Require set index.
+        smol_TEXCOORD,
+        smol_COLOR,
+        smol_JOINTS,
+        smol_WEIGHTS,
 }smol_mesh_primitive_attribute_name;
 
 typedef struct smol_mesh_primitive_attribute{
         u32 accessor;
         smol_mesh_primitive_attribute_name name;
+        s8 set_index;
 }smol_mesh_primitive_attribute;
+
+inline s8 smol_check_value_is_mesh_primitive_attribute_name_get_set_index(smol_str value, char const * test_str){
+        for(size_t i = 0; i < value.length; ++i){
+                if(test_str[i] != value.data[i]){
+                        if(value.data[i] == '_'){
+                                smol_str set_index_str = {.data = value.data + i + 1, .length = value.length - (i+1)};
+                                return smol_str_to_s64(set_index_str);
+                        }
+                        else return -1;
+                } 
+        }
+        return -1;
+}
 
 typedef struct smol_mesh_primitive{
         u8 attribute_count;
-        smol_mesh_primitive_attribute attributes;
+        smol_mesh_primitive_attribute * attributes;
         u32 indices;
         u32 material;
         u32 mode;
@@ -138,7 +156,8 @@ typedef struct smol_mesh {
         u8 primitive_count;
 } smol_mesh;
 
-typedef enum smol_GLTF_component_type : u8 {
+typedef enum smol_GLTF_component_type : s8 {
+        smol_GLTF_component_type_none = -1,
         smol_GLTF_component_type_s8,
         smol_GLTF_component_type_u8,
         smol_GLTF_component_type_s16,
@@ -150,16 +169,17 @@ typedef enum smol_GLTF_component_type : u8 {
 char const * const smol_GLTF_component_type_strings[6] = {"5120","5121","5122","5123","5125","5126"};
 
 //returns -1 if the string is not a valid type code.
-inline s8 lookup_component_type(smol_str value) NOEXCEPT{
+inline smol_GLTF_component_type lookup_component_type(smol_str value) NOEXCEPT{
         for(size_t i = 0; i < 6; ++i){
-                if(smol_str_is_equal(value, smol_GLTF_component_type_strings[i])) return i;
+                if(smol_str_is_equal(value, smol_GLTF_component_type_strings[i])) return (smol_GLTF_component_type)i;
         }
-        return -1;
+        return smol_GLTF_component_type_none;
 }
 
 u8 const smol_GLTF_component_type_byte_count[6] = {1,1,2,2,4,4};
 
-typedef enum smol_GLTF_type: u8{
+typedef enum smol_GLTF_type: s8{
+        smol_GLTF_none = -1,
         smol_GLTF_SCALAR,
         smol_GLTF_VEC2,
         smol_GLTF_VEC3,
@@ -181,21 +201,22 @@ inline s8 lookup_smol_GLTF_component(smol_str str) NOEXCEPT{
 
 u8 const smol_GLTF_type_component_count[8] = {1,2,3,4,4,9,16};
 
-typedef struct smol_accessors {
-        smol_GLTF_component_type * component_types;
-        smol_GLTF_type * types;
-        u32 * buffer_views;
-        u32 * byte_offsets;
+typedef struct smol_accessor {
+        smol_GLTF_component_type component_type;
+        smol_GLTF_type type;
+        u32 buffer_view;
+        u32 byte_offset;
         //must be cast based off the components array;
-        void ** min_values;
-        void ** max_values;
-        u32 * counts;
-} smol_accessors;
+        void *min_values;
+        void *max_values;
+        u32 count;
+} smol_accessor;
 
 typedef struct smol_buffer_view {
         u32 buffer;
         u32 byte_length;
         u32 byte_offset;
+        u32 byte_stride;
         u32 target;
 } smol_buffer_view;
 
@@ -216,30 +237,19 @@ typedef struct smol_GLTF {
         smol_scene *scenes;
         smol_node *nodes;
         smol_mesh *meshes;
-        smol_accessors accessors;
+        smol_accessor * accessors;
         smol_buffer_view *buffer_views;
         smol_buffer *buffers;
+        size_t data_length;
+        u8 const *data;
         u32 accessor_count;
         u32 scene_count;
         u32 node_count;
         u32 mesh_count;
         u32 buffer_view_count;
         u32 buffer_count;
-} smol_GLTF;
 
-inline void smol_allocate_accessors(smol_GLTF * gltf) NOEXCEPT{
-        gltf->accessors.component_types = (smol_GLTF_component_type * )gltf->allocator.allocate(sizeof(smol_GLTF_component_type) * gltf->accessor_count);
-        gltf->accessors.types = (smol_GLTF_type*)gltf->allocator.allocate(sizeof(smol_GLTF_type) * gltf->accessor_count);
-        gltf->accessors.buffer_views = (u32*)gltf->allocator.allocate(sizeof(u32) * gltf->accessor_count);
-        gltf->accessors.byte_offsets = (u32*)gltf->allocator.allocate(sizeof(u32) * gltf->accessor_count);
-        gltf->accessors.min_values = (void**)gltf->allocator.allocate(sizeof(void *) * gltf->accessor_count);
-        gltf->accessors.max_values = (void**)gltf->allocator.allocate(sizeof(void *) * gltf->accessor_count);
-        gltf->accessors.counts = (u32*)gltf->allocator.allocate(sizeof(u32) * gltf->accessor_count);
-        for(size_t i = 0; i < gltf->accessor_count; ++i){
-                gltf->accessors.min_values[i] = NULL;
-                gltf->accessors.max_values[i] = NULL;
-        }
-}
+} smol_GLTF;
 
 typedef struct smol_header {
         u32 magic;
@@ -517,6 +527,15 @@ inline void check_key_is_string_and_assign_s64_value(smol_str const * token_valu
         }
 }
 
+inline void smol_check_key_is_string_and_assign_u64_value(smol_str const * token_values, size_t * token_index, char const * test_str,u64 * assign_location)NOEXCEPT{
+        if(smol_str_is_equal(token_values[*token_index], test_str)){
+                ++*token_index;
+                //TODO: write an unsigned version.
+                *assign_location = (u32)smol_str_to_s64(token_values[*token_index]);
+                ++*token_index;
+        }
+}
+
 inline void smol_check_key_is_string_and_assign_u32_value(smol_str const * token_values, size_t * token_index, char const * test_str,u32 * assign_location)NOEXCEPT{
         if(smol_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
@@ -526,17 +545,29 @@ inline void smol_check_key_is_string_and_assign_u32_value(smol_str const * token
         }
 }
 
-inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) NOEXCEPT{
-        if (allocator.allocate && allocator.free) {
-                gltf->allocator.allocate = allocator.allocate;
-                gltf->allocator.free = allocator.free;
-        } else {
-                // Allocator is required right now.
-                return false;
+inline void smol_check_attribute_name_and_assign_accessor_index_and_set_index(smol_str const * token_values, size_t * token_index, char const * test_str, smol_mesh_primitive_attribute * attribute_location){
+        s8 set_index = -1;
+        for(size_t i = 0;i < token_values[*token_index].length;++i){
+                if(token_values[*token_index].data[i] != test_str[i]){
+                        if(token_values[*token_index].data[i] == '_'){
+                                set_index = smol_str_to_s64({.data = token_values[*token_index].data + i + 1, .length = token_values[*token_index].length - (i + 1)});
+                        }
+                }
         }
+        if(set_index < 0) return;
+        ++*token_index;
+        u32 accessor = (u32)smol_str_to_s64(token_values[*token_index]);
+        ++*token_index;
+        attribute_location->set_index = set_index;
+        
+}
 
-        if (raw_gltf_size < 20)
-                return false;
+inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) NOEXCEPT{
+        if (allocator.allocate && allocator.free) gltf->allocator = allocator; 
+        // Allocator is required right now.
+        else return false;
+
+        if (raw_gltf_size < 20) return false;
 
         smol_header header;
         smol_chunk json_chunk;
@@ -554,6 +585,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
         memcpy(&binary_chunk.type, raw_gltf_data + 20 + json_chunk.length + 4, 4);
         if (binary_chunk.type != BIN) return false;
         binary_chunk.data = raw_gltf_data + 20 + json_chunk.length + 8;
+        gltf->data = binary_chunk.data;
+        gltf->data_length = binary_chunk.length;
 
         size_t json_sybmol_count = smol_count_json_symbols(json_chunk.length, json_chunk.data);
         smol_symbol *json_symbols = (smol_symbol *)gltf->allocator.allocate(json_sybmol_count * sizeof(smol_symbol));
@@ -578,6 +611,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
             smol_root_scenes,
         };
 
+        //TODO: maybe this would be improved if instead each if statment called some function on a gltf_parse_state struct and kept track of its object depth with a stack.
         size_t token_index = 0;
         while (token_index < token_count) {
                 //TODO: this code should never evaluate to true.
@@ -596,16 +630,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                         ++token_index;
                         while(tokens[token_index] != smol_token_end_object){
                                 if(tokens[token_index] == smol_token_key){
-                                        if(smol_str_is_equal(token_values[token_index], "generator")){
-                                                ++token_index;
-                                                gltf->asset.generator = token_values[token_index]; 
-                                                ++token_index;
-                                        }
-                                        if(smol_str_is_equal(token_values[token_index], "version")){
-                                                ++token_index;
-                                                gltf->asset.version = token_values[token_index];
-                                                ++token_index;
-                                        }
+                                        smol_check_key_is_string_and_assign_value(token_values, &token_index, "generator", &gltf->asset.generator);
+                                        smol_check_key_is_string_and_assign_value(token_values, &token_index, "version", &gltf->asset.version);
                                 }
                         }
                         ++token_index;
@@ -613,12 +639,15 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                         ++token_index;
                         gltf->buffer_view_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->buffer_views = (smol_buffer_view * )gltf->allocator.allocate(gltf->buffer_view_count * sizeof(smol_buffer_view));
+                        memset(gltf->buffer_views, 0, gltf->buffer_view_count * sizeof(smol_buffer_view));
                         size_t buffer_view_index = 0;
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
                                 smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "buffer", &gltf->buffer_views[buffer_view_index].buffer);
                                 smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "byteLength", &gltf->buffer_views[buffer_view_index].byte_length);
                                 smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "byteOffset", &gltf->buffer_views[buffer_view_index].byte_offset);
+                                smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "byteStride", &gltf->buffer_views[buffer_view_index].byte_stride);
+                                smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "target", &gltf->buffer_views[buffer_view_index].target);
                                 if(tokens[token_index] == smol_token_end_object)++buffer_view_index; 
                                 ++token_index;
                         }
@@ -628,10 +657,22 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                         gltf->buffer_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->buffers = (smol_buffer *)gltf->allocator.allocate(gltf->buffer_count * sizeof(smol_buffer));
                         size_t buffer_index = 0;
+                        while(tokens[token_index] != smol_token_end_array){
+                                if(tokens[token_index] == smol_token_begin_object) ++token_index;
+                                smol_check_key_is_string_and_assign_u64_value(token_values, &token_index, "byteLength", &gltf->buffers[buffer_index].byte_length);
+                                if(smol_str_is_equal(token_values[token_index], "uri")){
+                                        ++token_index;
+                                        gltf->buffers[buffer_index].uri = token_values[token_index];
+                                        ++token_index;
+                                }else gltf->buffers[buffer_index].uri = {NULL,0};
+                                if(tokens[token_index] == smol_token_end_object) ++buffer_index;
+                                ++token_index;
+                        }
                 } else if(root_object == smol_root_meshes){
                         ++token_index;
                         gltf->mesh_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->meshes = (smol_mesh *)gltf->allocator.allocate(sizeof(smol_mesh) * gltf->mesh_count);
+                        memset(gltf->meshes, 0, sizeof(smol_mesh) * gltf->mesh_count);
                         u32 mesh_index = 0;
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
@@ -640,17 +681,93 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                         ++token_index;
                                         gltf->meshes[mesh_index].primitive_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                                         gltf->meshes[mesh_index].primitives = (smol_mesh_primitive *)gltf->allocator.allocate(sizeof(smol_mesh_primitive) * gltf->meshes[mesh_index].primitive_count);
+                                        memset(gltf->meshes[mesh_index].primitives, 0, sizeof(smol_mesh_primitive) * gltf->meshes[mesh_index].primitive_count);
                                         ++token_index;
                                         u8 primitive_index = 0;
                                         while(tokens[token_index] != smol_token_end_array){
                                                 if(tokens[token_index] == smol_token_begin_object)++token_index;
                                                 if(smol_str_is_equal(token_values[token_index], "attributes")){
-                                                        ++token_index;
-                                                        //TODO: figure this weird thing out.
+                                                        token_index +=2;
+                                                        u32 attribute_count = 0;
+                                                        size_t counting_index = token_index;
+                                                        while(tokens[counting_index] != smol_token_end_object){
+                                                                if(tokens[counting_index] == smol_token_key){
+                                                                        ++attribute_count;
+                                                                        ++counting_index;
+                                                                }
+                                                                ++counting_index;
+                                                        }
+
+                                                        gltf->meshes[mesh_index].primitives[primitive_index].attribute_count = attribute_count;
+                                                        gltf->meshes[mesh_index].primitives[primitive_index].attributes = (smol_mesh_primitive_attribute *)gltf->allocator.allocate(sizeof(smol_mesh_primitive_attribute) * attribute_count);
+                                                        smol_mesh_primitive_attribute * attributes = gltf->meshes[mesh_index].primitives[primitive_index].attributes;
+                                                        memset(attributes, 0, sizeof(smol_mesh_primitive_attribute) * attribute_count);
+
+                                                        u8 attribute_index = 0;
                                                         while(tokens[token_index] != smol_token_end_object){
-                                                                if(smol_str_is_equal(token_values[token_index], "POSITION")) token_index+=2;
-                                                                if(smol_str_is_equal(token_values[token_index], "NORMAL")) token_index+=2;
-                                                                
+                                                                if(smol_str_is_equal(token_values[token_index], "POSITION")){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_POSITION;
+                                                                        attributes[attribute_index].set_index = -1;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                       ++token_index; 
+                                                                } 
+                                                                if(smol_str_is_equal(token_values[token_index], "NORMAL")){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_NORMAL;
+                                                                        attributes[attribute_index].set_index = -1;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                if(smol_str_is_equal(token_values[token_index], "TANGENT")){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_TANGENT;
+                                                                        attributes[attribute_index].set_index = -1;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                s8 texcoord_set_index = smol_check_value_is_mesh_primitive_attribute_name_get_set_index(token_values[token_index], "TEXCOORD");
+                                                                if(texcoord_set_index >=0 ){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_TEXCOORD;
+                                                                        attributes[attribute_index].set_index = texcoord_set_index;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                s8 color_set_index = smol_check_value_is_mesh_primitive_attribute_name_get_set_index(token_values[token_index], "COLOR");
+                                                                if(color_set_index >=0 ){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_COLOR;
+                                                                        attributes[attribute_index].set_index = color_set_index;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                s8 joints_set_index = smol_check_value_is_mesh_primitive_attribute_name_get_set_index(token_values[token_index], "JOINTS");
+                                                                if(joints_set_index >=0 ){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_JOINTS;
+                                                                        attributes[attribute_index].set_index = joints_set_index;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                s8 weights_set_index = smol_check_value_is_mesh_primitive_attribute_name_get_set_index(token_values[token_index], "WEIGHTS");
+                                                                if(weights_set_index >=0 ){
+                                                                        ++token_index;
+                                                                        attributes[attribute_index].name = smol_WEIGHTS;
+                                                                        attributes[attribute_index].set_index = weights_set_index;
+                                                                        attributes[attribute_index].accessor = smol_str_to_s64(token_values[token_index]);
+                                                                        ++attribute_index;
+                                                                        ++token_index;
+                                                                } 
+                                                                if(tokens[token_index] == smol_token_end_object){
+                                                                        break;
+                                                                }
                                                                 ++token_index;
                                                         }
                                                         ++token_index;
@@ -676,6 +793,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                         ++token_index;
                         gltf->node_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->nodes = (smol_node *)gltf->allocator.allocate(sizeof(smol_node) * gltf->node_count); 
+                        memset(gltf->nodes, 0, sizeof(smol_node) * gltf->node_count);
                         u32 node_index =0;
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object)++token_index;
@@ -703,6 +821,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 size_t node_count = smol_count_tokens_til_end_of_array(token_count, tokens, token_index);
                                                 gltf->scenes[scene_index].node_count = node_count;
                                                 gltf->scenes[scene_index].nodes = (u32 *)gltf->allocator.allocate(sizeof(u32) * node_count);
+                                                memset(gltf->scenes[scene_index].nodes, 0, sizeof(u32) * node_count);
                                                 for(size_t node_index = 0; node_index < node_count; ++node_index){
                                                         gltf->scenes[scene_index].nodes[node_index] = smol_str_to_s64(token_values[token_index]);
                                                         ++token_index;
@@ -714,8 +833,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if (root_object == smol_root_accessors) {
                         ++token_index;
                         gltf->accessor_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        smol_allocate_accessors(gltf);
-
+                        gltf->accessors = (smol_accessor *) gltf->allocator.allocate(sizeof(smol_accessor) * gltf->accessor_count);
+                        memset(gltf->accessors, 0, sizeof(smol_accessor) * gltf->accessor_count);
                         u32 accessor_index = 0;
                         s64 min_array_begin_index =-1; 
                         s64 max_array_begin_index =-1; 
@@ -724,34 +843,36 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
                                 if(tokens[token_index] == smol_token_key){
-                                        smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "bufferView", &gltf->accessors.buffer_views[accessor_index]);
+                                        smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "bufferView", &gltf->accessors[accessor_index].buffer_view);
                                         if(smol_str_is_equal(token_values[token_index], "componentType")){
                                                 ++token_index;
                                                 s8 maybe_component_type = lookup_component_type(token_values[token_index]);
                                                 if(maybe_component_type >= 0){
                                                         has_component_type = true;
-                                                        gltf->accessors.component_types[accessor_index] = (smol_GLTF_component_type)maybe_component_type;
+                                                        gltf->accessors[accessor_index].component_type = (smol_GLTF_component_type)maybe_component_type;
                                                 }else{
                                                         //TODO: log this is bad somewhere.
                                                 }
                                                 ++token_index;
                                         }
-                                        smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "count", &gltf->accessors.counts[accessor_index]);
+                                        smol_check_key_is_string_and_assign_u32_value(token_values, &token_index, "count", &gltf->accessors[accessor_index].count);
                                         if(smol_str_is_equal(token_values[token_index], "max")){
                                                 ++token_index;
                                                 max_array_begin_index = token_index;
                                                 while(tokens[token_index] != smol_token_end_array) ++token_index;
+                                                ++token_index;
                                         }  
                                         if(smol_str_is_equal(token_values[token_index], "min")){
                                                 ++token_index;
                                                 min_array_begin_index = token_index;
                                                 while(tokens[token_index] != smol_token_end_array) ++token_index;
+                                                ++token_index;
                                         } 
                                         if(smol_str_is_equal(token_values[token_index], "type")){
                                                 ++token_index;
                                                 s8 maybe_type = lookup_smol_GLTF_component(token_values[token_index]);
                                                 if(maybe_type >= 0){
-                                                        gltf->accessors.types[accessor_index] = (smol_GLTF_type)maybe_type;
+                                                        gltf->accessors[accessor_index].type = (smol_GLTF_type)maybe_type;
                                                         has_type = true;
                                                 }else{
                                                         //TODO: log this error.
@@ -760,21 +881,25 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                         }
                                 }  
                                 if(tokens[token_index] == smol_token_end_object){
-                                        if(has_component_type && has_type && min_array_begin_index && max_array_begin_index){
+                                        if(has_component_type && has_type && min_array_begin_index >= 0 && max_array_begin_index >= 0){
                                                 //TODO: figure out wtf the padding bullshit was that they were talking about in the spec.
-                                                size_t component_byte_count = smol_GLTF_component_type_byte_count[gltf->accessors.component_types[accessor_index]];
-                                                size_t type_component_count = smol_GLTF_type_component_count[gltf->accessors.types[accessor_index]];
+                                                size_t component_byte_count = smol_GLTF_component_type_byte_count[gltf->accessors[accessor_index].component_type];
+                                                size_t type_component_count = smol_GLTF_type_component_count[gltf->accessors[accessor_index].type];
                                                 size_t total_byte_count = type_component_count * component_byte_count;
-                                                gltf->accessors.min_values[accessor_index] = gltf->allocator.allocate(total_byte_count);
-                                                gltf->accessors.max_values[accessor_index] = gltf->allocator.allocate(total_byte_count);
+                                                gltf->accessors[accessor_index].min_values = gltf->allocator.allocate(total_byte_count);
+                                                gltf->accessors[accessor_index].max_values = gltf->allocator.allocate(total_byte_count);
                                                 auto min_token_index = min_array_begin_index+1;
                                                 auto max_token_index = max_array_begin_index+1;
-                                                switch(gltf->accessors.component_types[accessor_index]){
+                                                switch(gltf->accessors[accessor_index].component_type){
+                                                        case smol_GLTF_component_type_none:{
+                                                        //TODO: error
+                                                        break;
+                                                        } 
                                                         case smol_GLTF_component_type_s8:
                                                         case smol_GLTF_component_type_u8:{
                                                                 for(size_t i = 0; i < type_component_count; ++i){
-                                                                        ((s8 *)gltf->accessors.min_values[accessor_index])[i] = (s8)smol_str_to_s64(token_values[min_token_index]);
-                                                                        ((s8 *)gltf->accessors.max_values[accessor_index])[i] = (s8)smol_str_to_s64(token_values[max_token_index]);
+                                                                        ((s8 *)gltf->accessors[accessor_index].min_values)[i] = (s8)smol_str_to_s64(token_values[min_token_index]);
+                                                                        ((s8 *)gltf->accessors[accessor_index].max_values)[i] = (s8)smol_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
                                                                         ++max_token_index;
                                                                 }
@@ -783,8 +908,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                         case smol_GLTF_component_type_s16:
                                                         case smol_GLTF_component_type_u16:{
                                                                 for(size_t i = 0; i < type_component_count; ++i){
-                                                                        ((s16 *)gltf->accessors.min_values[accessor_index])[i] = (s16)smol_str_to_s64(token_values[min_token_index]);
-                                                                        ((s16 *)gltf->accessors.max_values[accessor_index])[i] = (s16)smol_str_to_s64(token_values[max_token_index]);
+                                                                        ((s16 *)gltf->accessors[accessor_index].min_values)[i] = (s16)smol_str_to_s64(token_values[min_token_index]);
+                                                                        ((s16 *)gltf->accessors[accessor_index].max_values)[i] = (s16)smol_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
                                                                         ++max_token_index;
                                                                 }
@@ -792,8 +917,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                         }
                                                         case smol_GLTF_component_type_u32:{
                                                                 for(size_t i = 0; i < type_component_count; ++i){
-                                                                        ((s32 *)gltf->accessors.min_values[accessor_index])[i] = (s32)smol_str_to_s64(token_values[min_token_index]);
-                                                                        ((s32 *)gltf->accessors.max_values[accessor_index])[i] = (s32)smol_str_to_s64(token_values[max_token_index]);
+                                                                        ((s32 *)gltf->accessors[accessor_index].min_values)[i] = (u32)smol_str_to_s64(token_values[min_token_index]);
+                                                                        ((s32 *)gltf->accessors[accessor_index].max_values)[i] = (u32)smol_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
                                                                         ++max_token_index;
                                                                 }
@@ -801,8 +926,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                         }
                                                         case smol_GLTF_component_type_f32:{
                                                                 for(size_t i = 0; i < type_component_count; ++i){
-                                                                        ((s32 *)gltf->accessors.min_values[accessor_index])[i] = smol_str_to_f32(token_values[min_token_index]);
-                                                                        ((s32 *)gltf->accessors.max_values[accessor_index])[i] = smol_str_to_f32(token_values[max_token_index]);
+                                                                        ((s32 *)gltf->accessors[accessor_index].min_values)[i] = smol_str_to_f32(token_values[min_token_index]);
+                                                                        ((s32 *)gltf->accessors[accessor_index].max_values)[i] = smol_str_to_f32(token_values[max_token_index]);
                                                                         ++min_token_index;
                                                                         ++max_token_index;
                                                                 }
@@ -812,7 +937,6 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                         }else{
                                                 //TODO: error incomplete data to parse max and min values.
                                         }
-                                        accessor_index = 0;
                                         min_array_begin_index =-1; 
                                         max_array_begin_index =-1; 
                                         has_component_type = false;
@@ -821,6 +945,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                 } 
                                 ++token_index;
                         }
+                        ++token_index;
                 }
         }
 

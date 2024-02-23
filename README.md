@@ -10,6 +10,7 @@ bounds checking to prevent buffer overflows could be added in the future.
 
 requirements
 ------------
-stdint.h
-stdbool.h
-stdlib.h
+- stdbool.h
+- stdint.h
+- stdlib.h
+- string.h
