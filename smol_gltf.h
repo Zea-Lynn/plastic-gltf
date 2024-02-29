@@ -1,12 +1,12 @@
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef __cplusplus
 #define NOEXCEPT noexcept
+#define CONSTEXPR constexpr
 extern "C" {
 #elif 
 #define NOEXCEPT
@@ -21,6 +21,7 @@ typedef int32_t s32;
 typedef uint64_t u64;
 typedef int64_t s64;
 typedef float f32;
+typedef enum smol_bool{smol_false, smol_true}smol_bool;
 
 #define glTF 0x46546C67
 #define JSON 0x4E4F534A
@@ -32,19 +33,19 @@ typedef struct smol_str {
         size_t length;
 } smol_str;
 
-inline bool smol_str_is_equal(smol_str stra, char const *const strb) NOEXCEPT {
-        for(size_t i = 0;i < stra.length;++i) if(stra.data[i] != strb[i]) return false;
-        if(strb[stra.length] != '\0') return false;
-        return true;
+inline CONSTEXPR smol_bool smol_str_is_equal(smol_str stra, char const *const strb) NOEXCEPT {
+        for(size_t i = 0;i < stra.length;++i) if(stra.data[i] != strb[i]) return smol_false;
+        if(strb[stra.length] != '\0') return smol_false;
+        return smol_true;
 }
 
-inline bool smol_str_in(smol_str str, char const * const * strs, size_t count) NOEXCEPT{
-        for(size_t i = 0; i < count; ++i) if(smol_str_is_equal(str, strs[i])) return true;
-        return false;
+inline CONSTEXPR smol_bool smol_str_in(smol_str str, char const * const * strs, size_t count) NOEXCEPT{
+        for(size_t i = 0; i < count; ++i) if(smol_str_is_equal(str, strs[i])) return smol_true;
+        return smol_false;
 }
 
 
-inline s64 smol_str_to_s64(smol_str str) NOEXCEPT{
+inline CONSTEXPR s64 smol_str_to_s64(smol_str str) NOEXCEPT{
         if(str.length == 0 || str.data == NULL) return 0;
         if(str.length > 20) return 0;
         s64 value = 0;
@@ -52,14 +53,14 @@ inline s64 smol_str_to_s64(smol_str str) NOEXCEPT{
         if(str.data[0] == '-') sign = -1;
         for(u64 position = 0 + (sign < 0); position < str.length; ++position){
                 u64 digit = str.data[position] - '0';
-                bool is_valid = digit >= 0 || digit <= 9;
+                smol_bool is_valid = (smol_bool)(digit >= 0 || digit <= 9);
                 value = value * 10 + (digit * is_valid);
         }
 
         return value * sign;
 }
 
-inline f32 smol_str_to_f32(smol_str str) NOEXCEPT{
+inline CONSTEXPR f32 smol_str_to_f32(smol_str str) NOEXCEPT{
         if(str.length == 0 || str.data == NULL) return 0;
         f32 sign = 1;
         f32 value = 0;
@@ -129,7 +130,7 @@ typedef struct smol_mesh_primitive_attribute{
         s8 set_index;
 }smol_mesh_primitive_attribute;
 
-inline s8 smol_check_value_is_mesh_primitive_attribute_name_get_set_index(smol_str value, char const * test_str){
+inline CONSTEXPR s8 smol_check_value_is_mesh_primitive_attribute_name_get_set_index(smol_str value, char const * test_str){
         for(size_t i = 0; i < value.length; ++i){
                 if(test_str[i] != value.data[i]){
                         if(value.data[i] == '_'){
@@ -169,7 +170,7 @@ typedef enum smol_GLTF_component_type : s8 {
 char const * const smol_GLTF_component_type_strings[6] = {"5120","5121","5122","5123","5125","5126"};
 
 //returns -1 if the string is not a valid type code.
-inline smol_GLTF_component_type lookup_component_type(smol_str value) NOEXCEPT{
+inline CONSTEXPR smol_GLTF_component_type lookup_component_type(smol_str value) NOEXCEPT{
         for(size_t i = 0; i < 6; ++i){
                 if(smol_str_is_equal(value, smol_GLTF_component_type_strings[i])) return (smol_GLTF_component_type)i;
         }
@@ -192,7 +193,7 @@ typedef enum smol_GLTF_type: s8{
 char const * const smol_GLTF_type_strings[8] = { "SCALAR", "VEC2", "VEC3", "VEC4", "MAT2", "MAT3", "MAT4" };
 
 //returns -1 if the string is not a valid component.
-inline s8 lookup_smol_GLTF_component(smol_str str) NOEXCEPT{
+inline CONSTEXPR s8 lookup_smol_GLTF_component(smol_str str) NOEXCEPT{
         for(size_t i = 0; i < 8; ++i){
                 if(smol_str_is_equal(str, smol_GLTF_type_strings[i])) return i;
         }
@@ -226,8 +227,9 @@ typedef struct smol_buffer {
 } smol_buffer;
 
 typedef struct smol_allocator {
-        void *(*allocate)(size_t size);
-        void (*free)(void *ptr);
+        void * user_data;
+        void *(*allocate)(void * user_data, size_t size);
+        void (*free)(void * user_data, void *ptr);
 } smol_allocator;
 
 typedef struct smol_GLTF {
@@ -308,7 +310,7 @@ typedef enum smol_root_object : u8 {
     "scenes",
 };
 
-inline u64 smol_count_json_symbols(u64 json_size, u8 const *json)  NOEXCEPT{
+inline CONSTEXPR u64 smol_count_json_symbols(u64 json_size, u8 const *json)  NOEXCEPT{
         u64 token_count = 0;
         for (u8 const *byte = json; byte != json + json_size; ++byte) {
                 switch (*byte) {
@@ -327,19 +329,19 @@ inline u64 smol_count_json_symbols(u64 json_size, u8 const *json)  NOEXCEPT{
         return token_count;
 }
 
-inline void smol_parse_json_symbols(u64 json_size, u8 const * const json, u64 symbol_count, smol_symbol *symbols, u8 const **symbol_chars)  NOEXCEPT{
+inline CONSTEXPR void smol_parse_json_symbols(u64 json_size, u8 const * const json, u64 symbol_count, smol_symbol *symbols, u8 const **symbol_chars)  NOEXCEPT{
         u8 const **current_symbol_char = symbol_chars;
         smol_symbol *current_symbol = symbols;
-        bool in_string = false;
+        smol_bool in_string = smol_false;
 
         for (u8 const *byte = json; byte != json + json_size; ++byte) {
                 if (*byte == '"') {
                         if (in_string) {
-                                in_string = false;
+                                in_string = smol_false;
                                 *current_symbol = smol_symbol_end_string;
                                 goto eat_symbol;
                         } else {
-                                in_string = true;
+                                in_string = smol_true;
                                 *current_symbol = smol_symbol_begin_string;
                                 goto eat_symbol;
                         }
@@ -379,9 +381,9 @@ typedef enum smol_json_parse_stack_type: u8{
         smol_single_or_empty_array,
 }smol_json_parse_stack_type;
 
-inline size_t smol_count_json_tokens(size_t symbol_count, smol_symbol const *const symbols)  NOEXCEPT{
+inline CONSTEXPR size_t smol_count_json_tokens(size_t symbol_count, smol_symbol const *const symbols)  NOEXCEPT{
         size_t token_count = 0;
-        bool in_value_array = false;
+        smol_bool in_value_array = smol_false;
         for (size_t i = 0; i < symbol_count; ++i) {
                 smol_symbol symbol = symbols[i];
                 if (symbol == smol_symbol_open_squigily)
@@ -392,12 +394,12 @@ inline size_t smol_count_json_tokens(size_t symbol_count, smol_symbol const *con
                         ++token_count;
                         if(symbols[i+1] == smol_symbol_comma || symbols[i+1] == smol_symbol_close_square){
                                 ++token_count;
-                                in_value_array = true;
+                                in_value_array = smol_true;
                         }
                 }
                 else if (symbol == smol_symbol_close_square){
                         ++token_count;
-                        if(in_value_array) in_value_array = false;
+                        if(in_value_array) in_value_array = smol_false;
                 }
                 else if (symbol == smol_symbol_begin_string)
                         ++token_count;
@@ -418,7 +420,7 @@ inline size_t smol_count_json_tokens(size_t symbol_count, smol_symbol const *con
 }
 
 
-inline void smol_parse_json_tokens(size_t symbol_count, smol_symbol const *const symbols, u8 const *const *const symbol_locations, smol_token *tokens, smol_str *token_values) NOEXCEPT{
+inline CONSTEXPR void smol_parse_json_tokens(size_t symbol_count, smol_symbol const *const symbols, u8 const *const *const symbol_locations, smol_token *tokens, smol_str *token_values) NOEXCEPT{
         size_t token_index = 0;
         smol_json_parse_stack_type type_stack[UINT8_MAX] = {smol_none}; 
         u8 stack_spot = 0;
@@ -473,7 +475,7 @@ inline void smol_parse_json_tokens(size_t symbol_count, smol_symbol const *const
         }
 }
 
-inline size_t smol_count_objects_til_end_of_array(size_t token_count, smol_token const * tokens, size_t token_index)NOEXCEPT{
+inline CONSTEXPR size_t smol_count_objects_til_end_of_array(size_t token_count, smol_token const * tokens, size_t token_index)NOEXCEPT{
         size_t object_count = 0;
         s64 nested_object_count = -1;
         do{
@@ -491,14 +493,14 @@ inline size_t smol_count_objects_til_end_of_array(size_t token_count, smol_token
         return object_count;
 }
 
-inline size_t smol_count_tokens_til_end_of_array(size_t token_count, smol_token const * tokens, size_t current_token_index)NOEXCEPT{
+inline CONSTEXPR size_t smol_count_tokens_til_end_of_array(size_t token_count, smol_token const * tokens, size_t current_token_index)NOEXCEPT{
         size_t starting_token_index = current_token_index;
         do ++current_token_index; while(tokens[current_token_index] != smol_token_end_array);
         return current_token_index - starting_token_index;
 }
 
 //TODO: decrease count and remove object from array by swapping it to the end.
-inline s8 smol_parse_next_root_object_key(u8 * root_objects_to_parse_count, smol_root_object * root_objects_to_parse, smol_str token_value)NOEXCEPT{
+inline CONSTEXPR s8 smol_parse_next_root_object_key(u8 * root_objects_to_parse_count, smol_root_object * root_objects_to_parse, smol_str token_value)NOEXCEPT{
         if(token_value.length == 0 || token_value.data == NULL) return -1;
         for (u8 root_object_to_parse_index = 0; root_object_to_parse_index < *root_objects_to_parse_count; ++root_object_to_parse_index) {
                 if (smol_str_is_equal(token_value, smol_root_object_names[root_objects_to_parse[root_object_to_parse_index]])){
@@ -511,7 +513,7 @@ inline s8 smol_parse_next_root_object_key(u8 * root_objects_to_parse_count, smol
         return -1;
 }
 
-inline void smol_check_key_is_string_and_assign_value(smol_str const * token_values, size_t * token_index, char const * test_str,smol_str * assign_location)NOEXCEPT{
+inline CONSTEXPR void smol_check_key_is_string_and_assign_value(smol_str const * token_values, size_t * token_index, char const * test_str,smol_str * assign_location)NOEXCEPT{
         if(smol_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 *assign_location = token_values[*token_index];
@@ -519,7 +521,7 @@ inline void smol_check_key_is_string_and_assign_value(smol_str const * token_val
         }
 }
 
-inline void check_key_is_string_and_assign_s64_value(smol_str const * token_values, size_t * token_index, char const * test_str,s64 * assign_location)NOEXCEPT{
+inline CONSTEXPR void check_key_is_string_and_assign_s64_value(smol_str const * token_values, size_t * token_index, char const * test_str,s64 * assign_location)NOEXCEPT{
         if(smol_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 *assign_location = smol_str_to_s64(token_values[*token_index]);
@@ -527,7 +529,7 @@ inline void check_key_is_string_and_assign_s64_value(smol_str const * token_valu
         }
 }
 
-inline void smol_check_key_is_string_and_assign_u64_value(smol_str const * token_values, size_t * token_index, char const * test_str,u64 * assign_location)NOEXCEPT{
+inline CONSTEXPR void smol_check_key_is_string_and_assign_u64_value(smol_str const * token_values, size_t * token_index, char const * test_str,u64 * assign_location)NOEXCEPT{
         if(smol_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 //TODO: write an unsigned version.
@@ -536,7 +538,7 @@ inline void smol_check_key_is_string_and_assign_u64_value(smol_str const * token
         }
 }
 
-inline void smol_check_key_is_string_and_assign_u32_value(smol_str const * token_values, size_t * token_index, char const * test_str,u32 * assign_location)NOEXCEPT{
+inline CONSTEXPR void smol_check_key_is_string_and_assign_u32_value(smol_str const * token_values, size_t * token_index, char const * test_str,u32 * assign_location)NOEXCEPT{
         if(smol_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 //TODO: write an unsigned version.
@@ -545,7 +547,7 @@ inline void smol_check_key_is_string_and_assign_u32_value(smol_str const * token
         }
 }
 
-inline void smol_check_attribute_name_and_assign_accessor_index_and_set_index(smol_str const * token_values, size_t * token_index, char const * test_str, smol_mesh_primitive_attribute * attribute_location){
+inline CONSTEXPR void smol_check_attribute_name_and_assign_accessor_index_and_set_index(smol_str const * token_values, size_t * token_index, char const * test_str, smol_mesh_primitive_attribute * attribute_location){
         s8 set_index = -1;
         for(size_t i = 0;i < token_values[*token_index].length;++i){
                 if(token_values[*token_index].data[i] != test_str[i]){
@@ -562,40 +564,40 @@ inline void smol_check_attribute_name_and_assign_accessor_index_and_set_index(sm
         
 }
 
-inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) NOEXCEPT{
+inline CONSTEXPR smol_bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLTF *gltf, smol_allocator allocator) NOEXCEPT{
         if (allocator.allocate && allocator.free) gltf->allocator = allocator; 
         // Allocator is required right now.
-        else return false;
+        else return smol_false;
 
-        if (raw_gltf_size < 20) return false;
+        if (raw_gltf_size < 20) return smol_false;
 
         smol_header header;
         smol_chunk json_chunk;
         smol_chunk binary_chunk;
 
         memcpy(&header.magic, raw_gltf_data, 4);
-        if (header.magic != glTF) return false;
+        if (header.magic != glTF) return smol_false;
         memcpy(&header.version, raw_gltf_data + 4, 4);
         memcpy(&header.length, raw_gltf_data + 8, 4);
         memcpy(&json_chunk.length, raw_gltf_data + 12, 4);
         memcpy(&json_chunk.type, raw_gltf_data + 16, 4);
-        if (json_chunk.type != JSON) return false;
+        if (json_chunk.type != JSON) return smol_false;
         json_chunk.data = raw_gltf_data + 20;
         memcpy(&binary_chunk.length, raw_gltf_data + 20 + json_chunk.length, 4);
         memcpy(&binary_chunk.type, raw_gltf_data + 20 + json_chunk.length + 4, 4);
-        if (binary_chunk.type != BIN) return false;
+        if (binary_chunk.type != BIN) return smol_false;
         binary_chunk.data = raw_gltf_data + 20 + json_chunk.length + 8;
         gltf->data = binary_chunk.data;
         gltf->data_length = binary_chunk.length;
 
         size_t json_sybmol_count = smol_count_json_symbols(json_chunk.length, json_chunk.data);
-        smol_symbol *json_symbols = (smol_symbol *)gltf->allocator.allocate(json_sybmol_count * sizeof(smol_symbol));
-        u8 const **symbol_char_locations = (u8 const **)gltf->allocator.allocate(json_sybmol_count * sizeof(u8 const *));
+        smol_symbol *json_symbols = (smol_symbol *)gltf->allocator.allocate(gltf->allocator.user_data, json_sybmol_count * sizeof(smol_symbol));
+        u8 const **symbol_char_locations = (u8 const **)gltf->allocator.allocate(gltf->allocator.user_data, json_sybmol_count * sizeof(u8 const *));
         smol_parse_json_symbols(json_chunk.length, json_chunk.data, json_sybmol_count, json_symbols, symbol_char_locations);
 
         size_t token_count = smol_count_json_tokens(json_sybmol_count, json_symbols);
-        smol_token *tokens = (smol_token *)gltf->allocator.allocate(token_count * sizeof(smol_token));
-        smol_str *token_values = (smol_str *)gltf->allocator.allocate(token_count * sizeof(smol_str));
+        smol_token *tokens = (smol_token *)gltf->allocator.allocate(gltf->allocator.user_data, token_count * sizeof(smol_token));
+        smol_str *token_values = (smol_str *)gltf->allocator.allocate(gltf->allocator.user_data, token_count * sizeof(smol_str));
         memset(token_values, 0, token_count * sizeof(smol_str));
         smol_parse_json_tokens(json_sybmol_count, json_symbols, symbol_char_locations, tokens, token_values);
 
@@ -614,7 +616,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
         //TODO: maybe this would be improved if instead each if statment called some function on a gltf_parse_state struct and kept track of its object depth with a stack.
         size_t token_index = 0;
         while (token_index < token_count) {
-                //TODO: this code should never evaluate to true.
+                //TODO: this code should never evaluate to smol_true.
                 if (tokens[token_index] != smol_token_key){
                         ++token_index;
                         continue;
@@ -638,7 +640,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if(root_object == smol_root_bufferViews){
                         ++token_index;
                         gltf->buffer_view_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->buffer_views = (smol_buffer_view * )gltf->allocator.allocate(gltf->buffer_view_count * sizeof(smol_buffer_view));
+                        gltf->buffer_views = (smol_buffer_view * )gltf->allocator.allocate(gltf->allocator.user_data, gltf->buffer_view_count * sizeof(smol_buffer_view));
                         memset(gltf->buffer_views, 0, gltf->buffer_view_count * sizeof(smol_buffer_view));
                         size_t buffer_view_index = 0;
                         while(tokens[token_index] != smol_token_end_array){
@@ -655,7 +657,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if(root_object == smol_root_buffers){
                         ++token_index;
                         gltf->buffer_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->buffers = (smol_buffer *)gltf->allocator.allocate(gltf->buffer_count * sizeof(smol_buffer));
+                        gltf->buffers = (smol_buffer *)gltf->allocator.allocate(gltf->allocator.user_data, gltf->buffer_count * sizeof(smol_buffer));
                         size_t buffer_index = 0;
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
@@ -671,7 +673,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if(root_object == smol_root_meshes){
                         ++token_index;
                         gltf->mesh_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->meshes = (smol_mesh *)gltf->allocator.allocate(sizeof(smol_mesh) * gltf->mesh_count);
+                        gltf->meshes = (smol_mesh *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_mesh) * gltf->mesh_count);
                         memset(gltf->meshes, 0, sizeof(smol_mesh) * gltf->mesh_count);
                         u32 mesh_index = 0;
                         while(tokens[token_index] != smol_token_end_array){
@@ -680,7 +682,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                 if(smol_str_is_equal(token_values[token_index], "primitives")){
                                         ++token_index;
                                         gltf->meshes[mesh_index].primitive_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                                        gltf->meshes[mesh_index].primitives = (smol_mesh_primitive *)gltf->allocator.allocate(sizeof(smol_mesh_primitive) * gltf->meshes[mesh_index].primitive_count);
+                                        gltf->meshes[mesh_index].primitives = (smol_mesh_primitive *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_mesh_primitive) * gltf->meshes[mesh_index].primitive_count);
                                         memset(gltf->meshes[mesh_index].primitives, 0, sizeof(smol_mesh_primitive) * gltf->meshes[mesh_index].primitive_count);
                                         ++token_index;
                                         u8 primitive_index = 0;
@@ -699,7 +701,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                         }
 
                                                         gltf->meshes[mesh_index].primitives[primitive_index].attribute_count = attribute_count;
-                                                        gltf->meshes[mesh_index].primitives[primitive_index].attributes = (smol_mesh_primitive_attribute *)gltf->allocator.allocate(sizeof(smol_mesh_primitive_attribute) * attribute_count);
+                                                        gltf->meshes[mesh_index].primitives[primitive_index].attributes = (smol_mesh_primitive_attribute *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_mesh_primitive_attribute) * attribute_count);
                                                         smol_mesh_primitive_attribute * attributes = gltf->meshes[mesh_index].primitives[primitive_index].attributes;
                                                         memset(attributes, 0, sizeof(smol_mesh_primitive_attribute) * attribute_count);
 
@@ -792,7 +794,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if(root_object == smol_root_nodes){
                         ++token_index;
                         gltf->node_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->nodes = (smol_node *)gltf->allocator.allocate(sizeof(smol_node) * gltf->node_count); 
+                        gltf->nodes = (smol_node *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_node) * gltf->node_count); 
                         memset(gltf->nodes, 0, sizeof(smol_node) * gltf->node_count);
                         u32 node_index =0;
                         while(tokens[token_index] != smol_token_end_array){
@@ -810,7 +812,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if(root_object == smol_root_scenes){
                         ++token_index;
                         gltf->scene_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->scenes = (smol_scene *)gltf->allocator.allocate(sizeof(smol_scene) * gltf->scene_count);
+                        gltf->scenes = (smol_scene *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_scene) * gltf->scene_count);
                         size_t scene_index = 0;
                         for(;tokens[token_index] != smol_token_end_array; ++token_index){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
@@ -820,7 +822,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 token_index+=2;
                                                 size_t node_count = smol_count_tokens_til_end_of_array(token_count, tokens, token_index);
                                                 gltf->scenes[scene_index].node_count = node_count;
-                                                gltf->scenes[scene_index].nodes = (u32 *)gltf->allocator.allocate(sizeof(u32) * node_count);
+                                                gltf->scenes[scene_index].nodes = (u32 *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(u32) * node_count);
                                                 memset(gltf->scenes[scene_index].nodes, 0, sizeof(u32) * node_count);
                                                 for(size_t node_index = 0; node_index < node_count; ++node_index){
                                                         gltf->scenes[scene_index].nodes[node_index] = smol_str_to_s64(token_values[token_index]);
@@ -833,13 +835,13 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 } else if (root_object == smol_root_accessors) {
                         ++token_index;
                         gltf->accessor_count = smol_count_objects_til_end_of_array(token_count, tokens, token_index);
-                        gltf->accessors = (smol_accessor *) gltf->allocator.allocate(sizeof(smol_accessor) * gltf->accessor_count);
+                        gltf->accessors = (smol_accessor *) gltf->allocator.allocate(gltf->allocator.user_data, sizeof(smol_accessor) * gltf->accessor_count);
                         memset(gltf->accessors, 0, sizeof(smol_accessor) * gltf->accessor_count);
                         u32 accessor_index = 0;
                         s64 min_array_begin_index =-1; 
                         s64 max_array_begin_index =-1; 
-                        bool has_component_type = false;
-                        bool has_type = false;
+                        smol_bool has_component_type = smol_false;
+                        smol_bool has_type = smol_false;
                         while(tokens[token_index] != smol_token_end_array){
                                 if(tokens[token_index] == smol_token_begin_object) ++token_index;
                                 if(tokens[token_index] == smol_token_key){
@@ -848,7 +850,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 ++token_index;
                                                 s8 maybe_component_type = lookup_component_type(token_values[token_index]);
                                                 if(maybe_component_type >= 0){
-                                                        has_component_type = true;
+                                                        has_component_type = smol_true;
                                                         gltf->accessors[accessor_index].component_type = (smol_GLTF_component_type)maybe_component_type;
                                                 }else{
                                                         //TODO: log this is bad somewhere.
@@ -873,7 +875,7 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 s8 maybe_type = lookup_smol_GLTF_component(token_values[token_index]);
                                                 if(maybe_type >= 0){
                                                         gltf->accessors[accessor_index].type = (smol_GLTF_type)maybe_type;
-                                                        has_type = true;
+                                                        has_type = smol_true;
                                                 }else{
                                                         //TODO: log this error.
                                                 }
@@ -886,8 +888,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                                 size_t component_byte_count = smol_GLTF_component_type_byte_count[gltf->accessors[accessor_index].component_type];
                                                 size_t type_component_count = smol_GLTF_type_component_count[gltf->accessors[accessor_index].type];
                                                 size_t total_byte_count = type_component_count * component_byte_count;
-                                                gltf->accessors[accessor_index].min_values = gltf->allocator.allocate(total_byte_count);
-                                                gltf->accessors[accessor_index].max_values = gltf->allocator.allocate(total_byte_count);
+                                                gltf->accessors[accessor_index].min_values = gltf->allocator.allocate(gltf->allocator.user_data, total_byte_count);
+                                                gltf->accessors[accessor_index].max_values = gltf->allocator.allocate(gltf->allocator.user_data, total_byte_count);
                                                 auto min_token_index = min_array_begin_index+1;
                                                 auto max_token_index = max_array_begin_index+1;
                                                 switch(gltf->accessors[accessor_index].component_type){
@@ -939,8 +941,8 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                                         }
                                         min_array_begin_index =-1; 
                                         max_array_begin_index =-1; 
-                                        has_component_type = false;
-                                        has_type = false;
+                                        has_component_type = smol_false;
+                                        has_type = smol_false;
                                         ++accessor_index;
                                 } 
                                 ++token_index;
@@ -949,15 +951,15 @@ inline bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, smol_GLT
                 }
         }
 
-        gltf->allocator.free(token_values);
-        gltf->allocator.free(tokens);
-        gltf->allocator.free(symbol_char_locations);
-        gltf->allocator.free(json_symbols);
-        return true;
+        gltf->allocator.free(gltf->allocator.user_data, token_values);
+        gltf->allocator.free(gltf->allocator.user_data, tokens);
+        gltf->allocator.free(gltf->allocator.user_data, symbol_char_locations);
+        gltf->allocator.free(gltf->allocator.user_data, json_symbols);
+        return smol_true;
 }
 
 //TODO:
-inline void smol_free_GLTF(smol_GLTF *gltf) NOEXCEPT {}
+inline CONSTEXPR void smol_free_GLTF(smol_GLTF *gltf) NOEXCEPT {}
 
 #ifdef __cplusplus
 }
