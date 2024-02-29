@@ -243,6 +243,7 @@ typedef struct smol_GLTF {
         smol_buffer_view *buffer_views;
         smol_buffer *buffers;
         size_t data_length;
+        //Non Owning this points into the raw_gltf_data passed in by the caller.
         u8 const *data;
         u32 accessor_count;
         u32 scene_count;
@@ -568,7 +569,6 @@ inline CONSTEXPR smol_bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf
         if (allocator.allocate && allocator.free) gltf->allocator = allocator; 
         // Allocator is required right now.
         else return smol_false;
-
         if (raw_gltf_size < 20) return smol_false;
 
         smol_header header;
@@ -958,8 +958,47 @@ inline CONSTEXPR smol_bool smol_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf
         return smol_true;
 }
 
-//TODO:
-inline CONSTEXPR void smol_free_GLTF(smol_GLTF *gltf) NOEXCEPT {}
+inline CONSTEXPR void smol_free_GLTF(smol_GLTF *gltf) NOEXCEPT {
+        if(gltf->scenes){
+                for(u32 scene_index = 0; scene_index < gltf->scene_count; ++scene_index){
+                        if(gltf->scenes[scene_index].nodes) gltf->allocator.free(gltf->allocator.user_data, gltf->scenes[scene_index].nodes);
+                }
+                gltf->allocator.free(gltf->allocator.user_data, gltf->scenes);
+        }
+        if(gltf->nodes){
+                for(u32 node_index = 0; node_index < gltf->node_count; ++node_index){
+                        if(gltf->nodes[node_index].children) gltf->allocator.free(gltf->allocator.user_data, gltf->nodes[node_index].children);
+                }
+                gltf->allocator.free(gltf->allocator.user_data, gltf->nodes);
+        }
+        if(gltf->meshes){
+                for(u32 mesh_index = 0; mesh_index < gltf->mesh_count; ++mesh_index){
+                        if(gltf->meshes[mesh_index].primitives){
+                                for(u8 primitive_index = 0; primitive_index < gltf->meshes[mesh_index].primitive_count; ++primitive_index){
+                                        if(gltf->meshes[mesh_index].primitives[primitive_index].attributes){
+                                                gltf->allocator.free(gltf->allocator.user_data, gltf->meshes[mesh_index].primitives[primitive_index].attributes);
+                                        }
+                                }
+                                gltf->allocator.free(gltf->allocator.user_data, gltf->meshes[mesh_index].primitives);
+                        }
+                }
+                gltf->allocator.free(gltf->allocator.user_data, gltf->meshes);
+        }
+        if(gltf->accessors){
+                for(u32 accessor_index = 0; accessor_index < gltf->accessor_count; ++accessor_index){
+                        if(gltf->accessors[accessor_index].min_values){
+                                gltf->allocator.free(gltf->allocator.user_data, gltf->accessors[accessor_index].min_values);
+                        }
+                        if(gltf->accessors[accessor_index].max_values){
+                                gltf->allocator.free(gltf->allocator.user_data, gltf->accessors[accessor_index].max_values);
+                        }
+                }
+                gltf->allocator.free(gltf->allocator.user_data, gltf->accessors);
+
+        }
+        if(gltf->buffer_views) gltf->allocator.free(gltf->allocator.user_data, gltf->buffer_views);
+        if(gltf->buffers) gltf->allocator.free(gltf->allocator.user_data, gltf->buffers);
+}
 
 #ifdef __cplusplus
 }
