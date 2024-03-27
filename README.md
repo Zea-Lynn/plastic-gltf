@@ -1,4 +1,4 @@
-# smoll-gltf
+# plastic-gltf
 glTF parser to intake binary files exported from blender
 
 Warning
@@ -10,6 +10,6 @@ bounds checking to prevent buffer overflows could be added in the future.
 
 requirements
 ------------
-- stdint.h
-- stdlib.h
-- string.h
+- stdint.h: various int sizes
+- stdlib.h: size_t
+- string.h: memcpy, memset
