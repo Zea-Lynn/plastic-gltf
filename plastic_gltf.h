@@ -10,7 +10,7 @@
 #define PLA_NULL nullptr
 #define NODISCARD [[nodiscard]]
 extern "C" {
-#elif 
+#else
 #define NOEXCEPT
 #define CONSTEXPR
 #define PLA_NULL 0
@@ -38,17 +38,17 @@ typedef enum pla_bool{pla_false, pla_true}pla_bool;
 // Ironic
 typedef struct pla_str {
         u8 const *data;
-        size_t length;
+        usize length;
 } pla_str;
 
 NODISCARD INTERNAL pla_bool pla_str_is_equal(pla_str stra, char const *const strb) NOEXCEPT {
-        for(size_t i = 0;i < stra.length;++i) if(stra.data[i] != strb[i]) return pla_false;
+        for(usize i = 0;i < stra.length;++i) if(stra.data[i] != strb[i]) return pla_false;
         if(strb[stra.length] != '\0') return pla_false;
         return pla_true;
 }
 
-NODISCARD INTERNAL pla_bool pla_str_in(pla_str str, char const * const * strs, size_t count) NOEXCEPT{
-        for(size_t i = 0; i < count; ++i) if(pla_str_is_equal(str, strs[i])) return pla_true;
+NODISCARD INTERNAL pla_bool pla_str_in(pla_str str, char const * const * strs, usize count) NOEXCEPT{
+        for(usize i = 0; i < count; ++i) if(pla_str_is_equal(str, strs[i])) return pla_true;
         return pla_false;
 }
 
@@ -74,7 +74,7 @@ NODISCARD INTERNAL f32 pla_str_to_f32(pla_str str) NOEXCEPT{
         f32 value = 0;
         if(str.data[0] == '-') sign = -1;
         s64 point_index = -1;
-        for(size_t i = 0 + (sign < 0); i < str.length; ++i){
+        for(usize i = 0 + (sign < 0); i < str.length; ++i){
                 if(str.data[i] == '.'){
                         point_index = i;
                         continue;
@@ -84,7 +84,7 @@ NODISCARD INTERNAL f32 pla_str_to_f32(pla_str str) NOEXCEPT{
                         value = value * 10.0f + (f32)digit;
                         if(point_index >= 0){
                                 f32 decimal = 10;
-                                for(size_t b = 1; b < i-point_index; ++b){
+                                for(usize b = 1; b < i-point_index; ++b){
                                         decimal *= 10.0f;
                                 }
                                 value += (f32)digit/decimal;
@@ -139,7 +139,7 @@ typedef struct pla_mesh_primitive_attribute{
 }pla_mesh_primitive_attribute;
 
 INTERNAL s8 pla_check_value_is_mesh_primitive_attribute_name_get_set_index(pla_str value, char const * test_str){
-        for(size_t i = 0; i < value.length; ++i){
+        for(usize i = 0; i < value.length; ++i){
                 if(test_str[i] != value.data[i]){
                         if(value.data[i] == '_'){
                                 pla_str set_index_str = {.data = value.data + i + 1, .length = value.length - (i+1)};
@@ -179,7 +179,7 @@ char const * const pla_GLTF_component_type_strings[6] = {"5120","5121","5122","5
 
 //returns -1 if the string is not a valid type code.
 INTERNAL pla_GLTF_component_type lookup_component_type(pla_str value) NOEXCEPT{
-        for(size_t i = 0; i < 6; ++i){
+        for(usize i = 0; i < 6; ++i){
                 if(pla_str_is_equal(value, pla_GLTF_component_type_strings[i])) return (pla_GLTF_component_type)i;
         }
         return pla_GLTF_component_type_none;
@@ -202,7 +202,7 @@ char const * const pla_GLTF_type_strings[8] = { "SCALAR", "VEC2", "VEC3", "VEC4"
 
 //returns -1 if the string is not a valid component.
 INTERNAL s8 lookup_pla_GLTF_component(pla_str str) NOEXCEPT{
-        for(size_t i = 0; i < 8; ++i){
+        for(usize i = 0; i < 8; ++i){
                 if(pla_str_is_equal(str, pla_GLTF_type_strings[i])) return i;
         }
         return -1;
@@ -236,7 +236,7 @@ typedef struct pla_buffer {
 
 typedef struct pla_allocator {
         void * user_data;
-        void *(*allocate)(void * user_data, size_t size);
+        void *(*allocate)(void * user_data, usize size);
         void (*free)(void * user_data, void *ptr);
 } pla_allocator;
 
@@ -250,7 +250,7 @@ typedef struct pla_GLTF {
         pla_accessor * accessors;
         pla_buffer_view *buffer_views;
         pla_buffer *buffers;
-        size_t data_length;
+        usize data_length;
         //Non Owning this points into the raw_gltf_data passed in by the caller.
         u8 const *data;
         u32 accessor_count;
@@ -293,7 +293,7 @@ typedef enum pla_token : u8 {
         pla_token_end_object,
         pla_token_begin_array,
         pla_token_end_array,
-} pla_tokens;
+} pla_token;
 
 typedef enum pla_root_object : u8 {
         pla_root_accessors,
@@ -390,10 +390,10 @@ typedef enum pla_json_parse_stack_type: u8{
         pla_single_or_empty_array,
 }pla_json_parse_stack_type;
 
-INTERNAL size_t pla_count_json_tokens(size_t symbol_count, pla_symbol const *const symbols)  NOEXCEPT{
-        size_t token_count = 0;
+INTERNAL usize pla_count_json_tokens(usize symbol_count, pla_symbol const *const symbols)  NOEXCEPT{
+        usize token_count = 0;
         pla_bool in_value_array = pla_false;
-        for (size_t i = 0; i < symbol_count; ++i) {
+        for (usize i = 0; i < symbol_count; ++i) {
                 pla_symbol symbol = symbols[i];
                 if (symbol == pla_symbol_open_squigily)
                         ++token_count;
@@ -429,11 +429,11 @@ INTERNAL size_t pla_count_json_tokens(size_t symbol_count, pla_symbol const *con
 }
 
 
-INTERNAL void pla_parse_json_tokens(size_t symbol_count, pla_symbol const *const symbols, u8 const *const *const symbol_locations, pla_token *tokens, pla_str *token_values) NOEXCEPT{
-        size_t token_index = 0;
+INTERNAL void pla_parse_json_tokens(usize symbol_count, pla_symbol const *const symbols, u8 const *const *const symbol_locations, pla_token *tokens, pla_str *token_values) NOEXCEPT{
+        usize token_index = 0;
         pla_json_parse_stack_type type_stack[UINT8_MAX] = {pla_none}; 
         u8 stack_spot = 0;
-        for (size_t i = 0; i < symbol_count; ++i) {
+        for (usize i = 0; i < symbol_count; ++i) {
                 if (symbols[i] == pla_symbol_open_squigily){
                         tokens[token_index] = pla_token_begin_object;
                         ++stack_spot;
@@ -484,8 +484,8 @@ INTERNAL void pla_parse_json_tokens(size_t symbol_count, pla_symbol const *const
         }
 }
 
-INTERNAL size_t pla_count_objects_til_end_of_array(size_t token_count, pla_token const * tokens, size_t token_index)NOEXCEPT{
-        size_t object_count = 0;
+INTERNAL usize pla_count_objects_til_end_of_array(usize token_count, pla_token const * tokens, usize token_index)NOEXCEPT{
+        usize object_count = 0;
         s64 nested_object_count = -1;
         do{
                 if(tokens[token_index] == pla_token_begin_object){
@@ -502,8 +502,8 @@ INTERNAL size_t pla_count_objects_til_end_of_array(size_t token_count, pla_token
         return object_count;
 }
 
-INTERNAL size_t pla_count_tokens_til_end_of_array(size_t token_count, pla_token const * tokens, size_t current_token_index)NOEXCEPT{
-        size_t starting_token_index = current_token_index;
+INTERNAL usize pla_count_tokens_til_end_of_array(usize token_count, pla_token const * tokens, usize current_token_index)NOEXCEPT{
+        usize starting_token_index = current_token_index;
         do ++current_token_index; while(tokens[current_token_index] != pla_token_end_array);
         return current_token_index - starting_token_index;
 }
@@ -522,7 +522,7 @@ INTERNAL s8 pla_parse_next_root_object_key(u8 * root_objects_to_parse_count, pla
         return -1;
 }
 
-INTERNAL void pla_check_key_is_string_and_assign_value(pla_str const * token_values, size_t * token_index, char const * test_str,pla_str * assign_location)NOEXCEPT{
+INTERNAL void pla_check_key_is_string_and_assign_value(pla_str const * token_values, usize * token_index, char const * test_str,pla_str * assign_location)NOEXCEPT{
         if(pla_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 *assign_location = token_values[*token_index];
@@ -530,7 +530,7 @@ INTERNAL void pla_check_key_is_string_and_assign_value(pla_str const * token_val
         }
 }
 
-INTERNAL void check_key_is_string_and_assign_s64_value(pla_str const * token_values, size_t * token_index, char const * test_str,s64 * assign_location)NOEXCEPT{
+INTERNAL void check_key_is_string_and_assign_s64_value(pla_str const * token_values, usize * token_index, char const * test_str,s64 * assign_location)NOEXCEPT{
         if(pla_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 *assign_location = pla_str_to_s64(token_values[*token_index]);
@@ -538,7 +538,7 @@ INTERNAL void check_key_is_string_and_assign_s64_value(pla_str const * token_val
         }
 }
 
-INTERNAL void pla_check_key_is_string_and_assign_u64_value(pla_str const * token_values, size_t * token_index, char const * test_str,u64 * assign_location)NOEXCEPT{
+INTERNAL void pla_check_key_is_string_and_assign_u64_value(pla_str const * token_values, usize * token_index, char const * test_str,u64 * assign_location)NOEXCEPT{
         if(pla_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 //TODO: write an unsigned version.
@@ -547,30 +547,13 @@ INTERNAL void pla_check_key_is_string_and_assign_u64_value(pla_str const * token
         }
 }
 
-INTERNAL void pla_check_key_is_string_and_assign_u32_value(pla_str const * token_values, size_t * token_index, char const * test_str,u32 * assign_location)NOEXCEPT{
+INTERNAL void pla_check_key_is_string_and_assign_u32_value(pla_str const * token_values, usize * token_index, char const * test_str,u32 * assign_location)NOEXCEPT{
         if(pla_str_is_equal(token_values[*token_index], test_str)){
                 ++*token_index;
                 //TODO: write an unsigned version.
                 *assign_location = (u32)pla_str_to_s64(token_values[*token_index]);
                 ++*token_index;
         }
-}
-
-INTERNAL void pla_check_attribute_name_and_assign_accessor_index_and_set_index(pla_str const * token_values, size_t * token_index, char const * test_str, pla_mesh_primitive_attribute * attribute_location){
-        s8 set_index = -1;
-        for(size_t i = 0;i < token_values[*token_index].length;++i){
-                if(token_values[*token_index].data[i] != test_str[i]){
-                        if(token_values[*token_index].data[i] == '_'){
-                                set_index = pla_str_to_s64({.data = token_values[*token_index].data + i + 1, .length = token_values[*token_index].length - (i + 1)});
-                        }
-                }
-        }
-        if(set_index < 0) return;
-        ++*token_index;
-        u32 accessor = (u32)pla_str_to_s64(token_values[*token_index]);
-        ++*token_index;
-        attribute_location->set_index = set_index;
-        
 }
 
 inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_data, pla_GLTF *gltf, pla_allocator allocator) NOEXCEPT{
@@ -598,12 +581,12 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
         gltf->data = binary_chunk.data;
         gltf->data_length = binary_chunk.length;
 
-        size_t json_sybmol_count = pla_count_json_symbols(json_chunk.length, json_chunk.data);
+        usize json_sybmol_count = pla_count_json_symbols(json_chunk.length, json_chunk.data);
         pla_symbol *json_symbols = (pla_symbol *)gltf->allocator.allocate(gltf->allocator.user_data, json_sybmol_count * sizeof(pla_symbol));
         u8 const **symbol_char_locations = (u8 const **)gltf->allocator.allocate(gltf->allocator.user_data, json_sybmol_count * sizeof(u8 const *));
         pla_parse_json_symbols(json_chunk.length, json_chunk.data, json_sybmol_count, json_symbols, symbol_char_locations);
 
-        size_t token_count = pla_count_json_tokens(json_sybmol_count, json_symbols);
+        usize token_count = pla_count_json_tokens(json_sybmol_count, json_symbols);
         pla_token *tokens = (pla_token *)gltf->allocator.allocate(gltf->allocator.user_data, token_count * sizeof(pla_token));
         pla_str *token_values = (pla_str *)gltf->allocator.allocate(gltf->allocator.user_data, token_count * sizeof(pla_str));
         memset(token_values, 0, token_count * sizeof(pla_str));
@@ -622,7 +605,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
         };
 
         //TODO: maybe this would be improved if instead each if statment called some function on a gltf_parse_state struct and kept track of its object depth with a stack.
-        size_t token_index = 0;
+        usize token_index = 0;
         while (token_index < token_count) {
                 //TODO: this code should never evaluate to pla_true.
                 if (tokens[token_index] != pla_token_key){
@@ -650,7 +633,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                         gltf->buffer_view_count = pla_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->buffer_views = (pla_buffer_view * )gltf->allocator.allocate(gltf->allocator.user_data, gltf->buffer_view_count * sizeof(pla_buffer_view));
                         memset(gltf->buffer_views, 0, gltf->buffer_view_count * sizeof(pla_buffer_view));
-                        size_t buffer_view_index = 0;
+                        usize buffer_view_index = 0;
                         while(tokens[token_index] != pla_token_end_array){
                                 if(tokens[token_index] == pla_token_begin_object) ++token_index;
                                 pla_check_key_is_string_and_assign_u32_value(token_values, &token_index, "buffer", &gltf->buffer_views[buffer_view_index].buffer);
@@ -666,7 +649,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                         ++token_index;
                         gltf->buffer_count = pla_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->buffers = (pla_buffer *)gltf->allocator.allocate(gltf->allocator.user_data, gltf->buffer_count * sizeof(pla_buffer));
-                        size_t buffer_index = 0;
+                        usize buffer_index = 0;
                         while(tokens[token_index] != pla_token_end_array){
                                 if(tokens[token_index] == pla_token_begin_object) ++token_index;
                                 pla_check_key_is_string_and_assign_u64_value(token_values, &token_index, "byteLength", &gltf->buffers[buffer_index].byte_length);
@@ -674,7 +657,10 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                         ++token_index;
                                         gltf->buffers[buffer_index].uri = token_values[token_index];
                                         ++token_index;
-                                }else gltf->buffers[buffer_index].uri = {PLA_NULL,0};
+                                }else{
+                                        pla_str uri = {.data = PLA_NULL, .length = 0};
+                                        gltf->buffers[buffer_index].uri = uri;
+                                }
                                 if(tokens[token_index] == pla_token_end_object) ++buffer_index;
                                 ++token_index;
                         }
@@ -699,7 +685,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                                 if(pla_str_is_equal(token_values[token_index], "attributes")){
                                                         token_index +=2;
                                                         u32 attribute_count = 0;
-                                                        size_t counting_index = token_index;
+                                                        usize counting_index = token_index;
                                                         while(tokens[counting_index] != pla_token_end_object){
                                                                 if(tokens[counting_index] == pla_token_key){
                                                                         ++attribute_count;
@@ -821,18 +807,18 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                         ++token_index;
                         gltf->scene_count = pla_count_objects_til_end_of_array(token_count, tokens, token_index);
                         gltf->scenes = (pla_scene *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(pla_scene) * gltf->scene_count);
-                        size_t scene_index = 0;
+                        usize scene_index = 0;
                         for(;tokens[token_index] != pla_token_end_array; ++token_index){
                                 if(tokens[token_index] == pla_token_begin_object) ++token_index;
                                 if(tokens[token_index] == pla_token_key){
                                         pla_check_key_is_string_and_assign_value(token_values, &token_index, "name", &gltf->scenes[scene_index].name );
                                         if(pla_str_is_equal(token_values[token_index], "nodes")){
                                                 token_index+=2;
-                                                size_t node_count = pla_count_tokens_til_end_of_array(token_count, tokens, token_index);
+                                                usize node_count = pla_count_tokens_til_end_of_array(token_count, tokens, token_index);
                                                 gltf->scenes[scene_index].node_count = node_count;
                                                 gltf->scenes[scene_index].nodes = (u32 *)gltf->allocator.allocate(gltf->allocator.user_data, sizeof(u32) * node_count);
                                                 memset(gltf->scenes[scene_index].nodes, 0, sizeof(u32) * node_count);
-                                                for(size_t node_index = 0; node_index < node_count; ++node_index){
+                                                for(usize node_index = 0; node_index < node_count; ++node_index){
                                                         gltf->scenes[scene_index].nodes[node_index] = pla_str_to_s64(token_values[token_index]);
                                                         ++token_index;
                                                 }
@@ -893,13 +879,13 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                 if(tokens[token_index] == pla_token_end_object){
                                         if(has_component_type && has_type && min_array_begin_index >= 0 && max_array_begin_index >= 0){
                                                 //TODO: figure out wtf the padding bullshit was that they were talking about in the spec.
-                                                size_t component_byte_count = pla_GLTF_component_type_byte_count[gltf->accessors[accessor_index].component_type];
-                                                size_t type_component_count = pla_GLTF_type_component_count[gltf->accessors[accessor_index].type];
-                                                size_t total_byte_count = type_component_count * component_byte_count;
+                                                usize component_byte_count = pla_GLTF_component_type_byte_count[gltf->accessors[accessor_index].component_type];
+                                                usize type_component_count = pla_GLTF_type_component_count[gltf->accessors[accessor_index].type];
+                                                usize total_byte_count = type_component_count * component_byte_count;
                                                 gltf->accessors[accessor_index].min_values = gltf->allocator.allocate(gltf->allocator.user_data, total_byte_count);
                                                 gltf->accessors[accessor_index].max_values = gltf->allocator.allocate(gltf->allocator.user_data, total_byte_count);
-                                                auto min_token_index = min_array_begin_index+1;
-                                                auto max_token_index = max_array_begin_index+1;
+                                                usize min_token_index = min_array_begin_index+1;
+                                                usize max_token_index = max_array_begin_index+1;
                                                 switch(gltf->accessors[accessor_index].component_type){
                                                         case pla_GLTF_component_type_none:{
                                                         //TODO: error
@@ -907,7 +893,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                                         } 
                                                         case pla_GLTF_component_type_s8:
                                                         case pla_GLTF_component_type_u8:{
-                                                                for(size_t i = 0; i < type_component_count; ++i){
+                                                                for(usize i = 0; i < type_component_count; ++i){
                                                                         ((s8 *)gltf->accessors[accessor_index].min_values)[i] = (s8)pla_str_to_s64(token_values[min_token_index]);
                                                                         ((s8 *)gltf->accessors[accessor_index].max_values)[i] = (s8)pla_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
@@ -917,7 +903,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                                         }
                                                         case pla_GLTF_component_type_s16:
                                                         case pla_GLTF_component_type_u16:{
-                                                                for(size_t i = 0; i < type_component_count; ++i){
+                                                                for(usize i = 0; i < type_component_count; ++i){
                                                                         ((s16 *)gltf->accessors[accessor_index].min_values)[i] = (s16)pla_str_to_s64(token_values[min_token_index]);
                                                                         ((s16 *)gltf->accessors[accessor_index].max_values)[i] = (s16)pla_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
@@ -926,7 +912,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                                                 break;
                                                         }
                                                         case pla_GLTF_component_type_u32:{
-                                                                for(size_t i = 0; i < type_component_count; ++i){
+                                                                for(usize i = 0; i < type_component_count; ++i){
                                                                         ((s32 *)gltf->accessors[accessor_index].min_values)[i] = (u32)pla_str_to_s64(token_values[min_token_index]);
                                                                         ((s32 *)gltf->accessors[accessor_index].max_values)[i] = (u32)pla_str_to_s64(token_values[max_token_index]);
                                                                         ++min_token_index;
@@ -935,7 +921,7 @@ inline CONSTEXPR pla_bool pla_parse_GLTF(u32 raw_gltf_size, u8 const *raw_gltf_d
                                                                 break;
                                                         }
                                                         case pla_GLTF_component_type_f32:{
-                                                                for(size_t i = 0; i < type_component_count; ++i){
+                                                                for(usize i = 0; i < type_component_count; ++i){
                                                                         ((s32 *)gltf->accessors[accessor_index].min_values)[i] = pla_str_to_f32(token_values[min_token_index]);
                                                                         ((s32 *)gltf->accessors[accessor_index].max_values)[i] = pla_str_to_f32(token_values[max_token_index]);
                                                                         ++min_token_index;
