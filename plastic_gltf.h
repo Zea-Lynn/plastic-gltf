@@ -683,9 +683,9 @@ inline size_t try_parse_string(parse_state p, pla_str * out_str){
         return c2;
 }
 
-#define parse_string(string)\
-c = try_parse_string((parse_state){c, jsize, jdata}, &string);\
-if(c == SIZE_MAX) return false;
+// #define parse_string(string)\
+// c = try_parse_string((parse_state){c, jsize, jdata}, &string);\
+// if(c == SIZE_MAX) return false;
 
 
 static usize try_parse_value(parse_state parser, pla_str *value){
@@ -744,6 +744,12 @@ static inline usize try_count_items_in_array_or_object(parse_state p, u32 * out_
         pla_str key = {0}; \
         p.c = try_parse_string(p, &key); \
         if(p.c == SIZE_MAX) return SIZE_MAX;
+
+#define parse_object_value(name, out_value, parser) \
+                else if(pla_str_is_equal(key, name) && has_space){ \
+                        p.c = parser(p, has_space, &out_value);\
+                        if(p.c == SIZE_MAX)return SIZE_MAX;\
+                }
 
 static inline size_t parse_component_type(parse_state p, bool has_space, pla_GLTF_component_type * component_type){
         parse_value
@@ -821,7 +827,24 @@ static inline size_t parse_accessors(parse_state p, bool has_space, GLTF_state *
         return p.c;
 }
 
-static inline size_t parse_buffers(parse_state p, bool has_space, GLTF_state * out_state, pla_buffer * out_buffers){
+static inline size_t parse_buffers(parse_state p, bool has_space, GLTF_state * out_state, pla_buffer * out_buffer){
+        u32 components = 0;
+        if(try_count_items_in_array_or_object(p, &components) == SIZE_MAX) return SIZE_MAX;
+        parse('{');
+        for(u32 i = 0; i < components; ++i){
+                parse_array_object_key;
+                if(pla_str_is_equal(key, "uri")){
+                        p.c = try_parse_value(p, &out_buffer->uri);
+                }else if(pla_str_is_equal(key, "byteLength")){
+                        p.c = parse_u32(p, has_space, (u32*)&out_buffer->byte_length);
+                }
+
+                if(p.c == SIZE_MAX) return SIZE_MAX;
+                p.c = check_next_symbol_is(p, comma & close_squirle);
+                if(p.c == SIZE_MAX) return p.c;
+        }
+        pla_str uri;
+        u64 byte_length;
         return p.c;
 }
 
@@ -832,11 +855,7 @@ static inline size_t parse_buffer_views(parse_state p, bool has_space, GLTF_stat
         for(u32 i = 0; i < components; ++i){
                 parse_array_object_key
                 if(1);
-                #define X(type, name, prop, parser) \
-                else if(pla_str_is_equal(key, name) && has_space){ \
-                        p.c = parser(p, has_space, &out_buffer_views->prop);\
-                        if(p.c == SIZE_MAX)return SIZE_MAX;\
-                }
+                #define X(type, name, prop, parser) parse_object_value(name, out_buffer_views->prop, parser)
                 BUFFER_VIEW_COMPONENTS
                 #undef X
                 p.c = check_next_symbol_is(p, comma & close_squirle);
@@ -851,27 +870,38 @@ static inline size_t parse_meshes(parse_state p, bool has_space, GLTF_state * ou
         parse('{');
         for(u32 i = 0; i < components; ++i){
                 parse_array_object_key
+                parse(':')
                 if(pla_str_is_equal(key, "name")){
                         p.c = try_parse_string(p, &out_mesh->name);
                         if(p.c == SIZE_MAX) return SIZE_MAX;
                 }else if(pla_str_is_equal(key, "primitives")){
-                        parse(':')
                         u32 primitive_count = 0; 
                         if(try_count_items_in_array_or_object(p, &primitive_count) == SIZE_MAX) return SIZE_MAX;
                         if(has_space) out_mesh->primitives = out_state->arena->mesh_primitives+out_state->sizes.mesh_primitives;
                         out_state->sizes.mesh_primitives += primitive_count;
                         if(out_state->sizes.mesh_primitives > out_state->in_sizes->mesh_primitives) return SIZE_MAX;
-
                 }
         }
         return p.c;
 }
 
 static inline size_t parse_nodes(parse_state p, bool has_space, GLTF_state * out_state, pla_node * out_nodes){
+        u32 components = 0;
+        if(try_count_items_in_array_or_object(p, &components) == SIZE_MAX) return SIZE_MAX;
+        parse('{');
+        for(u32 i = 0; i < components; ++i){
+
+        }
         return p.c;
 }
 
 static inline size_t parse_scenes(parse_state p, bool has_space, GLTF_state * out_state, pla_scene * out_scenes){
+        u32 components = 0;
+        if(try_count_items_in_array_or_object(p, &components) == SIZE_MAX) return SIZE_MAX;
+        parse('{');
+        for(u32 i = 0; i < components; ++i){
+
+        }
         return p.c;
 }
 
@@ -886,7 +916,6 @@ static inline size_t parse_root(parse_state p, GLTF_state * out) NOEXCEPT{
                 pla_str key = {};
                 p.c = try_parse_string(p, &key);
                 if(p.c == SIZE_MAX) return SIZE_MAX;
-
                 if(pla_str_is_equal(key, "asset")){
                         parse(':');
                         u32 asset_items = 0;
@@ -906,6 +935,16 @@ static inline size_t parse_root(parse_state p, GLTF_state * out) NOEXCEPT{
                                 if(p.data[p.c] != ',' && p.data[p.c] != '}') return false;
                         }
                 }else if(pla_str_is_equal(key, "scene")){
+                        pla_str key = {};
+                        p.c = try_parse_string(p, &key);
+                        if(p.c == SIZE_MAX) return SIZE_MAX;
+                        parse(':');
+                        if(pla_str_is_equal(key, "scene") && out->out_gltf){
+                                p.c = parse_u32(p, true, &out->out_gltf->scene);
+                        }
+                        if(p.c == SIZE_MAX) return SIZE_MAX;
+                        p.c = check_next_symbol_is(p, comma | close_squirle);
+                        if(p.c == SIZE_MAX) return SIZE_MAX;
 
                 }
                 #define X(_, name, prop_name) \
