@@ -281,6 +281,9 @@ typedef struct pla_allocator {
         X(pla_buffer *, "buffers", buffers)
 
 typedef struct pla_GLTF {
+        //non owning pointer to the data in the glb.
+        u8 const * bin;
+        size_t bin_size;
         pla_asset asset;
         u32 scene;
         #define X(type, _, prop) type prop;
@@ -316,7 +319,7 @@ typedef struct pla_header {
 } pla_header;
 
 typedef struct pla_chunk {
-        u32 length;
+        u32 size;
         u32 type;
         u8 const *data;
 } pla_chunk;
@@ -1081,7 +1084,7 @@ static inline size_t parse_root(parse_state p, GLTF_state * out) NOEXCEPT{
 }
 
 //If buffer is null it just counts the size needed for a buffer to put the object in.
-bool pla_parse_gltf2(u32 data_size, u8 const * data, pla_GLTF_sizes * in_sizes, pla_GLTF_arena * arena, pla_GLTF * out_gltf) NOEXCEPT{
+bool pla_parse_gltf_arena_style(u32 data_size, u8 const * data, pla_GLTF_sizes * in_sizes, pla_GLTF_arena * arena, pla_GLTF * out_gltf) NOEXCEPT{
         //Must have at least this
         if(!in_sizes) return false;
         pla_header header;
@@ -1092,21 +1095,25 @@ bool pla_parse_gltf2(u32 data_size, u8 const * data, pla_GLTF_sizes * in_sizes, 
         if (header.magic != glTF) return false;
         memcpy(&header.version, data + 4, 4);
         memcpy(&header.length, data + 8, 4);
-        memcpy(&json_chunk.length, data + 12, 4);
+        memcpy(&json_chunk.size, data + 12, 4);
         memcpy(&json_chunk.type, data + 16, 4);
         if (json_chunk.type != JSON) return false;
         json_chunk.data = data + 20;
         u8 const * jdata = json_chunk.data;
-        usize jsize = json_chunk.length;
-        memcpy(&binary_chunk.length, data + 20 + json_chunk.length, 4);
-        memcpy(&binary_chunk.type, data + 20 + json_chunk.length + 4, 4);
+        usize jsize = json_chunk.size;
+        memcpy(&binary_chunk.size, data + 20 + json_chunk.size, 4);
+        memcpy(&binary_chunk.type, data + 20 + json_chunk.size + 4, 4);
         if (binary_chunk.type != BIN) return false;
-        binary_chunk.data = data + 20 + json_chunk.length + 8;
+        binary_chunk.data = data + 20 + json_chunk.size + 8;
 
 
         pla_GLTF_sizes sizes;
 
         usize c = 0;
+        if(arena && out_gltf){
+                out_gltf->bin = binary_chunk.data;
+                out_gltf->bin_size = binary_chunk.size;
+        } 
 
 
         GLTF_state out_state{
@@ -1119,6 +1126,54 @@ bool pla_parse_gltf2(u32 data_size, u8 const * data, pla_GLTF_sizes * in_sizes, 
         if(parse_root((parse_state){.c = 0, .size = jsize, .data = jdata}, &out_state) == SIZE_MAX) return false;
 
         return true;
+}
+
+static size_t get_aligned_size(size_t size){
+        size_t alignment = sizeof(void *);
+        return size + (alignment - (size % alignment));
+}
+
+inline size_t pla_get_buffer_size_from_sizes(pla_GLTF_sizes sizes){
+        size_t buffer_size = 0;
+
+        //Keep in sync with arena struct.
+        #define X(_, __, prop) buffer_size += get_aligned_size(sizes.prop);
+        ROOT_ARRAYS
+        #undef X
+        buffer_size += get_aligned_size(sizes.mesh_primitives);
+        buffer_size += get_aligned_size(sizes.mesh_primitive_attributes);
+        return buffer_size;
+}
+
+inline bool pla_set_arena(pla_GLTF_sizes const * sizes, size_t buffer_size, u8 * buffer, pla_GLTF_arena * arena){
+        size_t offset = 0;
+
+        //Keep in sync with arena struct.
+        #define X(type, _, prop) arena->prop = (type)buffer + offset; offset += get_aligned_size(sizes->prop); if(offset > buffer_size) return false;
+        ROOT_ARRAYS
+        #undef X
+        arena->mesh_primitives = (pla_mesh_primitive *)buffer + offset; offset += get_aligned_size(sizes->mesh_primitives); if(offset > buffer_size) return false;
+        arena->mesh_primitive_attributes = (pla_mesh_primitive_attribute *)buffer + offset; offset += get_aligned_size(sizes->mesh_primitive_attributes); if(offset > buffer_size) return false;
+        return true;
+}
+
+
+//Its expected that you call this twice, once to calculate how much memory is need then again with a buffer large enought to fit everything.
+inline bool pla_parse_GLTF(u32 data_size, u8 const * data, size_t * buffer_size, u8 * buffer, pla_GLTF * out_gltf){
+        if(!buffer_size) return false;
+        if(!buffer){
+                pla_GLTF_sizes sizes;
+                if(!pla_parse_gltf_arena_style(data_size, data, &sizes, NULL, NULL)) return false;
+                *buffer_size = pla_get_buffer_size_from_sizes(sizes);
+                return true;
+        }
+        if(!out_gltf) return false;
+        pla_GLTF_sizes sizes;
+        if(!pla_parse_gltf_arena_style(data_size, data, &sizes, NULL, NULL)) return false;
+        if(*buffer_size != pla_get_buffer_size_from_sizes(sizes)) return false;
+        pla_GLTF_arena arena;
+        if(!pla_set_arena(&sizes, *buffer_size, buffer, &arena)) return false;
+        return pla_parse_gltf_arena_style(data_size, data, &sizes, &arena, out_gltf);
 }
 
 
